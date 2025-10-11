@@ -1,0 +1,15 @@
+# Virtual environment
+.venv/
+
+# Playwright profiles
+downloads/
+playwright-data/
+
+# Local environment & secrets
+.env
+
+# Output artifacts
+application-history.json
+
+# Personal documents
+Dev Resume-2.pdf
