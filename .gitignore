@@ -13,3 +13,6 @@ application-history.json
 
 # Personal documents
 Dev Resume-2.pdf
+
+# Python
+__pycache__/
