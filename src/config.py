@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Configuration helpers for the LinkedIn Easy Apply agent."""
+"""Configuration helpers for the LinkedIn job application agent."""
 
 from dataclasses import dataclass
 import os

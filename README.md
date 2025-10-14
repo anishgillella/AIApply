@@ -31,16 +31,14 @@ Automates searching and applying to "AI Engineer" LinkedIn jobs posted within th
 ## Running the agent
 ```bash
 source .venv/bin/activate
-python src/main.py
+python -m src.main "https://www.linkedin.com/jobs/view/1234567890/"
 ```
 
-The agent will:
-- Launch Chromium in headed mode, constrained to LinkedIn domains
-- Log in using the provided credentials
-- Apply filters (AI Engineer, past 24 hours, Easy Apply)
-- Iterate job cards and launch the Easy Apply flow when available
-- Use the supplied resume for uploads and answer prompts with conservative defaults
-- Save a run history at `application-history.json`
+Provide any LinkedIn job posting URL. The agent will:
+- Launch Chromium in headed mode on the specific job page
+- Extract the job description, cross-reference with your resume, and craft tailored answers (allowed to invent supporting details when helpful)
+- Complete the Easy Apply flow end-to-end if available, keeping the modal open until submitted
+- Log outcomes in `application-history.json`
 
 ## Safety and operations
 - Credentials are injected via `sensitive_data` placeholders; the agent only exposes them on `linkedin.com` domains.

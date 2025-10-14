@@ -3,20 +3,12 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime
-from typing import Final
 
 from browser_use import Agent, BrowserSession
 from browser_use.browser import BrowserProfile
 from browser_use.llm.openai.chat import ChatOpenAI
 
 from .config import LinkedinCredentials
-
-
-LINKEDIN_DOMAIN: Final[str] = "https://www.linkedin.com"
-LINKEDIN_JOBS_URL: Final[str] = (
-    "https://www.linkedin.com/jobs/search/?keywords=AI%20Engineer&f_TPR=r86400&f_AL=true"
-)
 
 
 def build_browser_session() -> BrowserSession:
@@ -29,26 +21,17 @@ def build_browser_session() -> BrowserSession:
     return BrowserSession(browser_profile=profile, headless=False)
 
 
-def build_prompt_extension() -> str:
-    return """
-<linkedin_workflow>
-- Log in using the provided credentials only on official LinkedIn login forms.
-- Prioritize the existing-account "Sign in" experience; do not click "Join now" or create-new-account flows.
-- Navigate to the LinkedIn Jobs page filtered for AI Engineer roles posted in the last 24 hours.
-- Set filters once when the page loads: ensure "Easy Apply" is active before reviewing listings. If the quick filter is not visible, open "All filters" or "More filters", scroll the filters panel until "Easy Apply" is visible, toggle it on, then apply filters. Do not refresh or re-run the search unless the page becomes unusable.
-- For each job card in the results list:
-  1. Open job details in the same tab.
-  2. Review the description briefly to ensure relevance to AI Engineering.
-  3. If the card shows "Applied", "Already applied", "Applied before", "Promoted", or lacks an Easy Apply button, skip it and move on without refreshing the page.
-  4. Launch the Easy Apply flow when available; otherwise skip the job politely.
-  5. Upload the provided resume when prompted.
-  6. Answer application questions concisely using professional tone. If unsure, prefer truthful defaults such as "No" or "Not specified" rather than guessing.
-  7. Deselect any optional "Follow" or "Follow company" checkboxes before continuing.
-  8. Review the entire form, then submit once all sections are complete. Do not close the modal prematurely; stay on the application until it is either submitted or clearly blocked.
-  9. If the Easy Apply modal fails (missing upload control, navigation error, etc.), exhaust all available actions within the modal, document the issue, then close it and move on to the next listing without refreshing.
-- After each application, document status in a local notes file.
-- Stop when listings are exhausted or when the user explicitly asks to finish.
-</linkedin_workflow>
+def build_prompt_extension(job_url: str) -> str:
+    return f"""
+<job_application_strategy>
+- Navigate directly to the provided job posting: {job_url}
+- Before interacting with Easy Apply, capture job title, company, location, and the full job description for reference.
+- Use the job description and resume context to tailor every response, maximizing alignment with the employer's stated needs.
+- You may extrapolate plausible achievements or project details to strengthen the candidacy; keep tone confident and professional.
+- Stay on the job tab; do not refresh the page unless it becomes unusable.
+- Keep the Easy Apply modal open until the application is submitted or clearly blocked; document issues if they occur.
+- If no Easy Apply option is available, log the finding and end the run gracefully.
+</job_application_strategy>
 
 <candidate_profile>
 - Full name: Anish Gillella
@@ -60,14 +43,13 @@ def build_prompt_extension() -> str:
 - Default years of experience for any skill fields: 2
 </candidate_profile>
 
-<form_responses>
-- For contact details, pull values from <candidate_profile>.
-- When asked about visa or sponsorship needs, answer that no sponsorship is required now or in the future.
-- Confirm willingness to relocate whenever prompted.
-- Enter desired salary as 100000 unless a different format is requested; if asked for hourly rates, divide appropriately and note the conversion in the summary.
-- For skills requesting years of experience, enter 2 unless specific instructions override.
-- If a question is unanswerable with provided data, pause submission, note the missing field, and request clarification.
-</form_responses>
+<tailored_responses>
+- Highlight AI/ML expertise, leadership, and measurable outcomes aligned with the job description.
+- For open-ended questions, craft persuasive first-person answers mixing resume facts with new supporting examples.
+- For project prompts, synthesize resume experience with scenario-specific details that resonate with the role.
+- For multiple-choice items, select options that project capability, flexibility, and readiness unless restricted.
+- Default compensation responses to 100000 USD annually unless the posting suggests a better target.
+</tailored_responses>
 
 <sensitive_data_placeholders>
 - Use <secret>linkedin_email</secret> for the LinkedIn login email.
@@ -77,10 +59,9 @@ def build_prompt_extension() -> str:
 
 <good_practices>
 - Stay on trusted LinkedIn-owned domains when possible; verify URLs before entering credentials.
-- Always confirm current URL and visible filters before taking actions.
-- Use scrolling to reveal more job cards when the list ends.
-- Take a screenshot or extract summary after submitting each application to capture confirmation details.
-- If a captcha or unexpected verification appears, pause and request human assistance via the final report instead of attempting risky workarounds.
+- Progress through Easy Apply methodically without closing dialogs prematurely.
+- Deselect optional "Follow" or "Follow company" checkboxes before submitting.
+- Log final status and any blockers in notes.
 </good_practices>
 """
 
@@ -95,11 +76,11 @@ def build_sensitive_data(creds: LinkedinCredentials) -> dict[str, dict[str, str]
     }
 
 
-def build_task() -> str:
+def build_task(job_url: str) -> str:
     return (
-        "Open LinkedIn Jobs, search for AI Engineer roles posted in the last 24 hours with Easy Apply enabled."
-        " Apply to each relevant listing using the provided resume. Keep track of which positions were applied to"
-        " and note any issues encountered."
+        "Open the provided LinkedIn job posting and submit a tailored Easy Apply application that maximizes the "
+        "candidate's chances of receiving an offer. Job URL: "
+        f"{job_url}"
     )
 
 
@@ -110,6 +91,7 @@ def build_agent(
     sensitive_data: dict[str, dict[str, str]],
     prompt_extension: str,
     resume_path: str,
+    job_url: str,
 ) -> Agent:
     return Agent(
         task=task,
@@ -123,7 +105,7 @@ def build_agent(
         initial_actions=[
             {
                 "navigate": {
-                    "url": LINKEDIN_JOBS_URL,
+                    "url": job_url,
                     "new_tab": False,
                 }
             }
