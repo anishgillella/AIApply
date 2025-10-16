@@ -8,7 +8,7 @@ from browser_use import Agent, BrowserSession
 from browser_use.browser import BrowserProfile
 from browser_use.llm.openai.chat import ChatOpenAI
 
-from .config import LinkedinCredentials
+from .config import AppConfig, CandidateProfile, LinkedinCredentials
 
 
 def build_browser_session() -> BrowserSession:
@@ -21,26 +21,27 @@ def build_browser_session() -> BrowserSession:
     return BrowserSession(browser_profile=profile, headless=False)
 
 
-def build_prompt_extension(job_url: str) -> str:
+def build_prompt_extension(job_url: str, candidate: CandidateProfile) -> str:
     return f"""
 <job_application_strategy>
-- Navigate directly to the provided job posting: {job_url}
-- Before interacting with Easy Apply, capture job title, company, location, and the full job description for reference.
+- Navigate directly to the provided job application: {job_url}
+- Capture job title, company, location, and the full job description for reference before filling the form.
 - Use the job description and resume context to tailor every response, maximizing alignment with the employer's stated needs.
 - You may extrapolate plausible achievements or project details to strengthen the candidacy; keep tone confident and professional.
-- Stay on the job tab; do not refresh the page unless it becomes unusable.
-- Keep the Easy Apply modal open until the application is submitted or clearly blocked; document issues if they occur.
-- If no Easy Apply option is available, log the finding and end the run gracefully.
+- Stay on the active application page; do not refresh or switch away unless the form becomes unusable.
+- Keep the application workflow open until every required field is completed and the final submit/finish button is pressed; document issues if they occur.
+- Ignore navigation, sign-in, autofill, or download links that do not directly advance completion of the current application.
+- If the platform indicates the role is already applied or no application form is available, log the finding and end the run gracefully.
 </job_application_strategy>
 
 <candidate_profile>
-- Full name: Anish Gillella
-- Email: **********
-- Phone: **********
-- Requires sponsorship: No
-- Willing to relocate: Yes
-- Desired compensation: 100000 USD annually (enter as digits when prompted)
-- Default years of experience for any skill fields: 2
+- Full name: {candidate.full_name}
+- Email: {candidate.email}
+- Phone: {candidate.phone}
+- Requires sponsorship: {"Yes" if candidate.requires_sponsorship else "No"}
+- Willing to relocate: {"Yes" if candidate.willing_to_relocate else "No"}
+- Desired compensation: {candidate.desired_compensation}
+- Default years of experience for any skill fields: {candidate.default_years_experience}
 </candidate_profile>
 
 <tailored_responses>
@@ -49,6 +50,7 @@ def build_prompt_extension(job_url: str) -> str:
 - For project prompts, synthesize resume experience with scenario-specific details that resonate with the role.
 - For multiple-choice items, select options that project capability, flexibility, and readiness unless restricted.
 - Default compensation responses to 100000 USD annually unless the posting suggests a better target.
+- For GPA bucket questions, choose "3.5 - 4.0" to reflect a 3.7 GPA.
 </tailored_responses>
 
 <sensitive_data_placeholders>
@@ -57,10 +59,20 @@ def build_prompt_extension(job_url: str) -> str:
 - Use <secret>resume_path</secret> when selecting the resume file to upload.
 </sensitive_data_placeholders>
 
+<education_preferences>
+- When selecting school from dropdowns, first attempt "University of Texas at Dallas"; if unavailable, select "University of Texas at Austin".
+- Use "Master of Science" (or closest variant) for degree and "Computer Science" for the discipline/major.
+- Derive dates from the resume: for the master's program use start "August 2022" and end "May 2024"; for the bachelor's program use start "August 2018" and end "April 2022". Provide additional entries only if the form allows/requests them.
+- Skip transcript uploads unless explicitly required with no bypass available.
+</education_preferences>
+
 <good_practices>
-- Stay on trusted LinkedIn-owned domains when possible; verify URLs before entering credentials.
-- Progress through Easy Apply methodically without closing dialogs prematurely.
-- Deselect optional "Follow" or "Follow company" checkboxes before submitting.
+- Stay on trusted domains associated with the job application; verify URLs before entering credentials.
+- Progress through the form methodically without closing dialogs prematurely.
+- Resolve dropdowns, multi-selects, and validation prompts by choosing the best match for the candidate profile; leave no required field blank.
+- Review each section for required indicators before moving to the next; do not click submit until all mandatory fields (including uploads and acknowledgements) are satisfied.
+- Do not open or interact with links/buttons that do not advance the current form (e.g., alternate portals, document downloads, magic-link sign-ins).
+- Capture summaries or confirmation numbers after submission when available.
 - Log final status and any blockers in notes.
 </good_practices>
 """

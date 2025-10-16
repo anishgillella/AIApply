@@ -17,7 +17,7 @@ from .agent_setup import (
     build_sensitive_data,
     build_task,
 )
-from .config import LinkedinCredentials, load_env
+from .config import AppConfig, load_env
 from .resume_ocr import ResumeOCRError, ResumeContext, extract_resume_context
 
 
@@ -26,19 +26,19 @@ async def main(job_url: str) -> None:
     run_started_at = datetime.now()
 
     setup_logging()
-    creds = load_env()
+    config: AppConfig = load_env()
 
     try:
         resume_context: ResumeContext = extract_resume_context(
-            mistral_api_key=creds.mistral_api_key,
-            resume_path=creds.resume_path,
+            mistral_api_key=config.credentials.mistral_api_key,
+            resume_path=config.credentials.resume_path,
         )
     except ResumeOCRError as exc:
         raise RuntimeError(f"Resume OCR failed: {exc}") from exc
 
     print("=== Resume OCR Output ===")
     print(f"Pages processed: {resume_context.pages_processed}")
-    print(f"Source file: {creds.resume_path}")
+    print(f"Source file: {config.credentials.resume_path}")
     print("-------------------------")
     print(resume_context.markdown or "[No text extracted]")
     print("=== End Resume OCR Output ===")
@@ -46,13 +46,13 @@ async def main(job_url: str) -> None:
     llm = ChatOpenAI(model="gpt-4o-mini")
     browser_session = build_browser_session()
 
-    prompt_extension = build_prompt_extension(job_url)
+    prompt_extension = build_prompt_extension(job_url, config.candidate)
     if resume_context.markdown:
         prompt_extension = (
             f"{prompt_extension}\n<resume_context>\n{resume_context.markdown}\n</resume_context>"
         )
 
-    sensitive_data = build_sensitive_data(creds)
+    sensitive_data = build_sensitive_data(config.credentials)
 
     agent = build_agent(
         task=build_task(job_url),
@@ -60,7 +60,7 @@ async def main(job_url: str) -> None:
         browser_session=browser_session,
         sensitive_data=sensitive_data,
         prompt_extension=prompt_extension,
-        resume_path=creds.resume_path,
+        resume_path=config.credentials.resume_path,
         job_url=job_url,
     )
 
