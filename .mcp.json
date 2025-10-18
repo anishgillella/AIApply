@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "stagehand-docs": {
+      "url": "https://docs.stagehand.dev/mcp",
+      "description": "Stagehand browser automation framework documentation"
+    }
+  }
+}
+
